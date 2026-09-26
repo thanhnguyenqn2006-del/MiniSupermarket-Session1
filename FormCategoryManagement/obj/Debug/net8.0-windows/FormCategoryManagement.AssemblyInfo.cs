@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FormCategoryManagement")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+244a954db9a30b48fab087461ca1ad2ef556f5f6")]
 [assembly: System.Reflection.AssemblyProductAttribute("FormCategoryManagement")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FormCategoryManagement")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
