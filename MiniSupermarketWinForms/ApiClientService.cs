@@ -9,7 +9,9 @@ namespace MiniSupermarketWinForms
 {
     public static class ApiClientService
     {
-        // Địa chỉ URL gốc của Web API Backend (cấu hình theo cổng chạy thực tế của dự án Web API)
+        // Địa chỉ URL gốc của Web API Backend
+        // HTTPS (khi chạy từ Visual Studio F5):  https://localhost:7006/api/
+        // HTTP  (khi chạy bằng dotnet run):      http://localhost:5097/api/
         public static string BaseApiUrl { get; set; } = "https://localhost:7006/api/";
 
         public static HttpClient CreateHttpClient()

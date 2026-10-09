@@ -75,6 +75,32 @@ namespace MiniSupermarketWinForms
             };
             btnAdminDash.Click += async (s, e) => await TestAdminDashboardAsync();
 
+            var btnCustomers = new ToolStripButton
+            {
+                Text = "👥 Quản lý Khách hàng",
+                ToolTipText = "Mở màn hình Quản lý Khách hàng thân thiết (EF Core)",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.DarkGreen
+            };
+            btnCustomers.Click += (s, e) =>
+            {
+                var frmCust = new FormCustomerManagement();
+                frmCust.ShowDialog();
+            };
+
+            var btnProducts = new ToolStripButton
+            {
+                Text = "📦 Quản lý Sản phẩm",
+                ToolTipText = "Mở màn hình Quản lý Sản phẩm (EF Core + JWT)",
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = Color.DarkSlateBlue
+            };
+            btnProducts.Click += (s, e) =>
+            {
+                var frmProd = new FormProductManagement();
+                frmProd.ShowDialog();
+            };
+
             var sep2 = new ToolStripSeparator();
 
             var btnLogout = new ToolStripButton
@@ -89,6 +115,8 @@ namespace MiniSupermarketWinForms
             toolStrip1.Items.Add(sep1);
             toolStrip1.Items.Add(btnStaffPos);
             toolStrip1.Items.Add(btnAdminDash);
+            toolStrip1.Items.Add(btnCustomers);
+            toolStrip1.Items.Add(btnProducts);
             toolStrip1.Items.Add(sep2);
             toolStrip1.Items.Add(btnLogout);
         }

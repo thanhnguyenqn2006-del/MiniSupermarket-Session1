@@ -1,13 +1,25 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using MiniSupermarket.API.Data;
+using MiniSupermarket.API.Filters;
 using System.Text;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // =========================================================
-// 1. CẤU HÌNH JWT AUTHENTICATION (BƯỚC 2)
+// 1. CẤU HÌNH DATABASE (ENTITY FRAMEWORK CORE - BUỔI 3)
+// =========================================================
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Server=(localdb)\\mssqllocaldb;Database=BeautyMartDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;";
+
+builder.Services.AddDbContext<SupermarketDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// =========================================================
+// 2. CẤU HÌNH JWT AUTHENTICATION (BUỔI 2)
 // =========================================================
 var jwtSecret = builder.Configuration["JwtSettings:Secret"]
     ?? "SupermarketSecretKeyDoAnMonHoc2026SecureString!!";
@@ -29,7 +41,7 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.FromMinutes(5)
     };
 
-    // Tự động nhận diện token dù người dùng nhập tiền tố "Bearer " hay chỉ dán mỗi chuỗi token
+    // Tự động nhận diện token linh hoạt (có hoặc không có tiền tố Bearer)
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
@@ -75,11 +87,14 @@ builder.Services.AddAuthentication(options =>
 });
 
 // =========================================================
-// 2. CONTROLLERS & DATA ANNOTATIONS MODELSTATE
+// 3. CONTROLLERS & DATA ANNOTATIONS MODELSTATE
 // =========================================================
 builder.Services.AddControllers();
 
-// Tùy biến phản hồi khi ModelState.IsValid == false theo chuẩn Data Annotations (Mục 2.3)
+// Đăng ký Action Filters vào DI Container (Buổi 2 - Tùy biến vòng đời Request)
+builder.Services.AddScoped<LogActionFilter>();
+builder.Services.AddScoped<ExecutionTimeFilter>();
+
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
@@ -105,18 +120,17 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options 
 builder.Services.AddEndpointsApiExplorer();
 
 // =========================================================
-// 3. CẤU HÌNH SWAGGER UI HỖ TRỢ XÁC THỰC BEARER TOKEN (PHẦN 3)
+// 4. CẤU HÌNH SWAGGER UI + BEARER TOKEN
 // =========================================================
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "MiniSupermarket API",
+        Title = "Beauty Mart API",
         Version = "v1",
-        Description = "Hệ thống MiniSupermarket Web API - Buổi 2: Bảo mật & Phân quyền JWT"
+        Description = "Hệ thống Quản lý Bán hàng & Tồn kho Cửa hàng Mỹ phẩm & Hóa phẩm Beauty Mart - Buổi 3: Tích hợp SQL Server & EF Core"
     });
 
-    // Cấu hình Bearer Authentication cho Swagger UI
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -146,20 +160,19 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // =========================================================
-// 4. PIPELINE XỬ LÝ REQUEST HTTP (MIDDLEWARE)
+// 5. MIDDLEWARE PIPELINE
 // =========================================================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MiniSupermarket API v1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Beauty Mart API v1");
     });
 }
 
 app.UseHttpsRedirection();
 
-// BẮT BUỘC: UseAuthentication PHẢI được gọi TRƯỚC UseAuthorization
 app.UseAuthentication();
 app.UseAuthorization();
 
