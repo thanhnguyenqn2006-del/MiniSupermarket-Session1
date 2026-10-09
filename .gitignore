@@ -1,18 +1,11 @@
-## Visual Studio
+bin/
+obj/
 .vs/
+.vscode/
 *.user
 *.suo
-*.userosscache
-*.sln.docstates
-
-## Build results
-[Bb]in/
-[Oo]bj/
-
-## NuGet
-*.nuget.props
-*.nuget.targets
-
-## Temporary & logs
-*.tmp
 *.log
+*.db
+*.DS_Store
+*.ncrunch*
+*.vsconfig
