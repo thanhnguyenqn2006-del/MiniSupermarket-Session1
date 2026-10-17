@@ -64,9 +64,24 @@ namespace MiniSupermarket.API.Controllers
             return Ok(result);
         }
 
-        // 4. POST: Thêm mới sản phẩm (Chỉ Admin)
+        // 3b. GET: Tra cứu sản phẩm theo mã vạch cho FormPOS (/api/products/barcode/{barcode})
+        [HttpGet("barcode/{barcode}")]
+        public async Task<IActionResult> GetByBarcode(string barcode)
+        {
+            var product = await _context.Products
+                .Include(p => p.Category)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Barcode == barcode);
+
+            if (product == null)
+                return NotFound(new { message = $"Không tìm thấy sản phẩm có mã vạch: {barcode}" });
+
+            return Ok(product);
+        }
+
+        // 4. POST: Thêm mới sản phẩm (Admin + Warehouse)
         [HttpPost]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Warehouse")]
         public async Task<IActionResult> Create([FromBody] Product newProduct)
         {
             if (!ModelState.IsValid)
@@ -87,9 +102,9 @@ namespace MiniSupermarket.API.Controllers
             return CreatedAtAction(nameof(GetById), new { id = newProduct.ProductId }, newProduct);
         }
 
-        // 5. PUT: Cập nhật sản phẩm (Chỉ Admin)
+        // 5. PUT: Cập nhật sản phẩm (Admin + Warehouse)
         [HttpPut("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Warehouse")]
         public async Task<IActionResult> Update(int id, [FromBody] Product updateProduct)
         {
             if (!ModelState.IsValid)
@@ -115,7 +130,7 @@ namespace MiniSupermarket.API.Controllers
 
         // 6. DELETE: Xóa sản phẩm (Chỉ Admin)
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin")]  // Chỉ Admin mới được xóa
         public async Task<IActionResult> Delete(int id)
         {
             var product = await _context.Products.FindAsync(id);

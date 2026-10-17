@@ -57,7 +57,7 @@ namespace MiniSupermarket.API.Controllers
 
         // 4. CREATE: Thêm mới nhóm hàng vào Database (Chỉ Admin)
         [HttpPost]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Warehouse")]
         public async Task<IActionResult> Create([FromBody] Category newCat)
         {
             if (!ModelState.IsValid)
@@ -71,9 +71,9 @@ namespace MiniSupermarket.API.Controllers
             return CreatedAtAction(nameof(GetById), new { id = newCat.CategoryId }, newCat);
         }
 
-        // 5. UPDATE: Cập nhật nhóm hàng vào Database (Chỉ Admin)
+        // 5. UPDATE: Cập nhật nhóm hàng vào Database (Admin + Warehouse)
         [HttpPut("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Warehouse")]
         public async Task<IActionResult> Update(int id, [FromBody] Category updateCat)
         {
             var cat = await _context.Categories.FindAsync(id);

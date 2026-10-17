@@ -20,9 +20,14 @@ namespace MiniSupermarketWinForms
         public FormLogin()
         {
             InitializeComponent();
+            SetupUI();
         }
 
         private void InitializeComponent()
+        {
+        }
+
+        private void SetupUI()
         {
             this.lblTitle = new Label
             {
@@ -89,7 +94,7 @@ namespace MiniSupermarketWinForms
 
             this.lblHint = new Label
             {
-                Text = "Tài khoản thử nghiệm: admin/123456 (Admin) | cashier/123456 (Cashier)",
+                Text = "Thử: admin01 | cashier01 | ware01  (MK: 123456)",
                 Font = new Font("Segoe UI", 8.25f, FontStyle.Italic),
                 ForeColor = Color.DimGray,
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -147,26 +152,27 @@ namespace MiniSupermarketWinForms
                         var jsonString = await response.Content.ReadAsStringAsync();
                         using (var doc = JsonDocument.Parse(jsonString))
                         {
-                            // Trích xuất Token và Role lưu vào lớp tĩnh SessionManager dùng chung toàn ứng dụng
-                            SessionManager.JwtToken = doc.RootElement.GetProperty("token").GetString() ?? string.Empty;
-                            SessionManager.CurrentRole = doc.RootElement.GetProperty("role").GetString() ?? string.Empty;
+                            // Trích xuất Token, Role, FullName lưu vào SessionManager
+                            SessionManager.JwtToken        = doc.RootElement.GetProperty("token").GetString() ?? string.Empty;
+                            SessionManager.CurrentRole     = doc.RootElement.GetProperty("role").GetString() ?? string.Empty;
                             SessionManager.CurrentUsername = username;
 
+                            if (doc.RootElement.TryGetProperty("fullName", out var fn))
+                                SessionManager.FullName = fn.GetString() ?? username;
+                            else
+                                SessionManager.FullName = username;
+
                             if (doc.RootElement.TryGetProperty("refreshToken", out var rt))
-                            {
                                 SessionManager.RefreshToken = rt.GetString() ?? string.Empty;
-                            }
                         }
 
-                        MessageBox.Show($"Đăng nhập thành công với quyền: {SessionManager.CurrentRole}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                        // Mở Form quản lý chính (FormCategoryManagement) và ẩn Form đăng nhập đi
+                        // Mở FormMainShell (Single-Form Shell — Buổi 4)
                         SessionManager.IsLoggedOut = false;
-                        FormCategoryManagement mainForm = new FormCategoryManagement();
+                        var mainShell = new FormMainShell();
                         this.Hide();
-                        mainForm.ShowDialog();
+                        mainShell.ShowDialog();
 
-                        // Nếu người dùng chọn Đăng xuất từ mainForm, hiển thị lại FormLogin
+                        // Sau khi đóng FormMainShell
                         if (SessionManager.IsLoggedOut)
                         {
                             txtPass.Clear();
@@ -174,7 +180,7 @@ namespace MiniSupermarketWinForms
                         }
                         else
                         {
-                            this.Close(); // Đóng hẳn ứng dụng khi form chính tắt
+                            this.Close();
                         }
                     }
                     else

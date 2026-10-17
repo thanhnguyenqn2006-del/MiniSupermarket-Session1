@@ -128,7 +128,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Beauty Mart API",
         Version = "v1",
-        Description = "Hệ thống Quản lý Bán hàng & Tồn kho Cửa hàng Mỹ phẩm & Hóa phẩm Beauty Mart - Buổi 3: Tích hợp SQL Server & EF Core"
+        Description = "Hệ thống Quản lý Bán hàng & Tồn kho Cửa hàng Mỹ phẩm & Hóa phẩm Beauty Mart"
     });
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme

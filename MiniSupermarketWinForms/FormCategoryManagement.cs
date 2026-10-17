@@ -40,7 +40,17 @@ namespace MiniSupermarketWinForms
         // =========================================================
         private async void FormCategoryManagement_Load(object sender, EventArgs e)
         {
-            SetupToolStripFeatures();
+            // Khi nhúng vào FormMainShell (child form), ẩn ToolStrip cũ
+            // vì điều hướng đã được xử lý bởi Sidebar của FormMainShell
+            if (!this.TopLevel)
+            {
+                toolStrip1.Visible = false;
+            }
+            else
+            {
+                SetupToolStripFeatures();
+            }
+
             ApplyRolePermissions();
             await LoadDataAsync();
         }

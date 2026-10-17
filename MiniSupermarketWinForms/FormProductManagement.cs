@@ -170,7 +170,15 @@ namespace MiniSupermarketWinForms
             this.Controls.Add(pnlSearch);
 
             // =================== Events ===================
-            this.Load += async (s, e) => { SetupToolStrip(); ApplyRolePermissions(); await LoadCategoriesAsync(); await LoadDataAsync(); };
+            this.Load += async (s, e) =>
+            {
+                // Ẩn ToolStrip cũ khi nhúng vào FormMainShell (child form)
+                if (!this.TopLevel) toolStrip1.Visible = false;
+                else SetupToolStrip();
+                ApplyRolePermissions();
+                await LoadCategoriesAsync();
+                await LoadDataAsync();
+            };
             this.dgvProducts.CellClick += DgvProducts_CellClick;
             this.btnLoad.Click += async (s, e) => await LoadDataAsync();
             this.btnSearch.Click += async (s, e) => await SearchAsync();
