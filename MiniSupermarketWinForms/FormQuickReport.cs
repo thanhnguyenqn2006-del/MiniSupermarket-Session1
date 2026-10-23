@@ -24,6 +24,8 @@ namespace MiniSupermarketWinForms
         private Label lblBestSeller;
         private Label lblStatus;
 
+        private DataGridView dgvCashiers;
+
         public FormQuickReport()
         {
             InitializeComponent();
@@ -58,8 +60,8 @@ namespace MiniSupermarketWinForms
 
             lblStatus = new Label
             {
-                Text      = "💡 Chọn ngày và nhấn 'Xem Báo cáo' để tải dữ liệu.",
-                Left      = 500, Top = 20, Width = 500,
+                Text      = "💡 Nhấn 'Xem Báo cáo' để gọi Stored Procedure từ CSDL SQL Server.",
+                Left      = 500, Top = 20, Width = 550,
                 ForeColor = Color.DimGray, Font = new Font("Segoe UI", 9F, FontStyle.Italic)
             };
 
@@ -68,26 +70,26 @@ namespace MiniSupermarketWinForms
             // ── 3 thẻ tóm tắt ─────────────────────────────────────────
             panelCards = new Panel { Dock = DockStyle.Top, Height = 170, Padding = new Padding(20, 20, 20, 0) };
 
-            cardOrders     = CreateStatCard("📋 Tổng số Hóa đơn", Color.FromArgb(41, 100, 180));
-            cardRevenue    = CreateStatCard("💰 Tổng Doanh thu", Color.FromArgb(0, 150, 80));
-            cardBestSeller = CreateStatCard("🏆 Sản phẩm bán chạy", Color.FromArgb(200, 100, 0));
+            cardOrders     = CreateStatCard("📋 Tổng số Hóa đơn (Ca)", Color.FromArgb(41, 100, 180));
+            cardRevenue    = CreateStatCard("💰 Doanh thu Stored Procedure", Color.FromArgb(0, 150, 80));
+            cardBestSeller = CreateStatCard("🏆 Top 1 Bán chạy nhất", Color.FromArgb(200, 100, 0));
 
             lblTotalOrders  = (Label)cardOrders.Controls[0];
             lblTotalRevenue = (Label)cardRevenue.Controls[0];
             lblBestSeller   = (Label)cardBestSeller.Controls[0];
 
             // Bố cục 3 thẻ ngang
-            cardOrders.Bounds    = new Rectangle(20, 20, 300, 130);
-            cardRevenue.Bounds   = new Rectangle(340, 20, 300, 130);
+            cardOrders.Bounds     = new Rectangle(20, 20, 300, 130);
+            cardRevenue.Bounds    = new Rectangle(340, 20, 300, 130);
             cardBestSeller.Bounds = new Rectangle(660, 20, 340, 130);
 
             panelCards.Controls.AddRange(new Control[] { cardOrders, cardRevenue, cardBestSeller });
 
-            // ── Bảng chi tiết (placeholder) ───────────────────────────
-            var pnlDetail = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Margin = new Padding(20), Padding = new Padding(20) };
+            // ── Bảng chi tiết kết quả Stored Procedure ────────────────
+            var pnlDetail = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(20) };
             var lblDetailTitle = new Label
             {
-                Text      = "CHI TIẾT GIAO DỊCH TRONG NGÀY",
+                Text      = "📈 BÁO CÁO DOANH THU THEO TỪNG THU NGÂN (sp_GetRevenueByCashier - Buổi 5)",
                 Dock      = DockStyle.Top,
                 Height    = 40,
                 Font      = new Font("Segoe UI", 10F, FontStyle.Bold),
@@ -95,7 +97,26 @@ namespace MiniSupermarketWinForms
                 TextAlign = ContentAlignment.MiddleLeft,
                 Padding   = new Padding(5, 0, 0, 0)
             };
-            
+
+            dgvCashiers = new DataGridView
+            {
+                Dock                = DockStyle.Fill,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                SelectionMode       = DataGridViewSelectionMode.FullRowSelect,
+                ReadOnly            = true,
+                AllowUserToAddRows  = false,
+                BackgroundColor     = Color.White,
+                RowHeadersVisible   = false,
+                GridColor           = Color.FromArgb(230, 232, 240),
+                AutoGenerateColumns = false
+            };
+
+            dgvCashiers.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "CashierUsername", HeaderText = "Tài khoản Thu ngân", Width = 180 });
+            dgvCashiers.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "TotalOrders",     HeaderText = "Số HĐ Đã Lập",        Width = 130 });
+            dgvCashiers.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "RevenueFormatted",HeaderText = "Tổng Doanh Thu (VNĐ)",  Width = 200 });
+            dgvCashiers.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "PointsFormatted", HeaderText = "Điểm Thưởng Đã Tặng",   Width = 160 });
+
+            pnlDetail.Controls.Add(dgvCashiers);
             pnlDetail.Controls.Add(lblDetailTitle);
 
             this.Controls.Add(pnlDetail);
@@ -117,7 +138,6 @@ namespace MiniSupermarketWinForms
                 Padding   = new Padding(15)
             };
 
-            // Thanh màu bên trái
             var accent = new Panel { Dock = DockStyle.Left, Width = 5, BackColor = accentColor };
 
             var lblCardTitle = new Label
@@ -134,7 +154,7 @@ namespace MiniSupermarketWinForms
             {
                 Text      = "---",
                 Dock      = DockStyle.Fill,
-                Font      = new Font("Segoe UI", 20F, FontStyle.Bold),
+                Font      = new Font("Segoe UI", 16F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(24, 30, 48),
                 TextAlign = ContentAlignment.MiddleCenter
             };
@@ -150,39 +170,71 @@ namespace MiniSupermarketWinForms
         {
             btnRunReport.Enabled = false;
             btnRunReport.Text    = "⏳ Đang tải...";
-            lblStatus.Text       = "Đang kết nối API...";
+            lblStatus.Text       = "Đang gọi Stored Procedure từ API...";
 
             try
             {
                 using var client = ApiClientService.CreateHttpClient();
-                client.DefaultRequestHeaders.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", SessionManager.JwtToken);
-
-                // Lấy tất cả sản phẩm để thống kê tồn kho
-                var products = await client.GetFromJsonAsync<System.Collections.Generic.List<PosProductDto>>("products");
-                var customers = await client.GetFromJsonAsync<System.Collections.Generic.List<CustLookupDto>>("customers");
-
-                if (products != null)
+                if (!string.IsNullOrEmpty(SessionManager.JwtToken))
                 {
-                    // Thống kê giả lập từ dữ liệu sản phẩm
-                    int totalProducts    = products.Count;
-                    decimal totalValue   = 0;
-                    string bestSeller    = "---";
-                    int minStock         = int.MaxValue;
-
-                    foreach (var p in products)
-                    {
-                        totalValue += p.Price * p.StockQuantity;
-                        if (p.StockQuantity < minStock) { minStock = p.StockQuantity; bestSeller = p.ProductName; }
-                    }
-
-                    lblTotalOrders.Text  = $"{customers?.Count ?? 0}";
-                    lblTotalRevenue.Text = $"{totalValue:N0} đ";
-                    lblBestSeller.Text   = bestSeller.Length > 22 ? bestSeller.Substring(0, 22) + "…" : bestSeller;
-
-                    lblStatus.Text       = $"✅ Đã tải báo cáo ngày {dtpDate.Value:dd/MM/yyyy} — {totalProducts} sản phẩm";
-                    lblStatus.ForeColor  = Color.FromArgb(0, 120, 60);
+                    client.DefaultRequestHeaders.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", SessionManager.JwtToken);
                 }
+
+                // 1. Gọi Stored Procedure sp_GetRevenueByCashier (Buổi 5)
+                var cashierResponse = await client.GetAsync("reports/revenue-by-cashier");
+                if (cashierResponse.IsSuccessStatusCode)
+                {
+                    var jsonStr = await cashierResponse.Content.ReadAsStringAsync();
+                    using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+                    if (doc.RootElement.TryGetProperty("data", out var dataArr))
+                    {
+                        var list = new List<CashierReportViewModel>();
+                        int grandOrders = 0;
+                        decimal grandRevenue = 0;
+
+                        foreach (var el in dataArr.EnumerateArray())
+                        {
+                            string username = el.GetProperty("cashierUsername").GetString() ?? "";
+                            int orders = el.GetProperty("totalOrders").GetInt32();
+                            decimal rev = el.GetProperty("totalRevenue").GetDecimal();
+                            int pts = el.GetProperty("totalPointsAwarded").GetInt32();
+
+                            grandOrders += orders;
+                            grandRevenue += rev;
+
+                            list.Add(new CashierReportViewModel
+                            {
+                                CashierUsername = username,
+                                TotalOrders = orders,
+                                TotalRevenue = rev,
+                                TotalPointsAwarded = pts
+                            });
+                        }
+
+                        dgvCashiers.DataSource = list;
+                        lblTotalOrders.Text = $"{grandOrders} hóa đơn";
+                        lblTotalRevenue.Text = $"{grandRevenue:N0} đ";
+                    }
+                }
+
+                // 2. Gọi Stored Procedure sp_GetTop5SellingProducts (Buổi 5)
+                var topResponse = await client.GetAsync("reports/top-selling-products");
+                if (topResponse.IsSuccessStatusCode)
+                {
+                    var topStr = await topResponse.Content.ReadAsStringAsync();
+                    using var topDoc = System.Text.Json.JsonDocument.Parse(topStr);
+                    if (topDoc.RootElement.TryGetProperty("data", out var topArr) && topArr.GetArrayLength() > 0)
+                    {
+                        var first = topArr[0];
+                        string topName = first.GetProperty("productName").GetString() ?? "---";
+                        int topQty = first.GetProperty("totalQuantitySold").GetInt32();
+                        lblBestSeller.Text = $"{topName} ({topQty} cái)";
+                    }
+                }
+
+                lblStatus.Text = $"✅ Dữ liệu Stored Procedure cập nhật lúc {DateTime.Now:HH:mm:ss}";
+                lblStatus.ForeColor = Color.FromArgb(0, 120, 60);
             }
             catch (Exception ex)
             {
@@ -195,5 +247,15 @@ namespace MiniSupermarketWinForms
                 btnRunReport.Text    = "📊  Xem Báo cáo";
             }
         }
+    }
+
+    public class CashierReportViewModel
+    {
+        public string CashierUsername { get; set; } = string.Empty;
+        public int TotalOrders { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public int TotalPointsAwarded { get; set; }
+        public string RevenueFormatted => $"{TotalRevenue:N0} đ";
+        public string PointsFormatted => $"{TotalPointsAwarded:N0} điểm";
     }
 }

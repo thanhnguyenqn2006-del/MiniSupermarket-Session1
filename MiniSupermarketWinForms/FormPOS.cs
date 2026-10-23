@@ -202,7 +202,9 @@ namespace MiniSupermarketWinForms
             return client;
         }
 
-        // ── Quét mã vạch ──────────────────────────────────────────────
+        private int? _selectedCustomerId = null;
+
+        // ── Quét mã vạch (Sử dụng API ADO.NET Siêu Tốc Buổi 5) ─────────────
         private async void TxtBarcode_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter && !string.IsNullOrWhiteSpace(txtBarcode.Text))
@@ -214,18 +216,46 @@ namespace MiniSupermarketWinForms
                 try
                 {
                     using var client = GetClient();
-                    var product = await client.GetFromJsonAsync<PosProductDto>($"products/barcode/{barcode}");
-                    if (product == null) { MessageBox.Show("Không tìm thấy sản phẩm!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    PosProductDto product = null;
+
+                    // Thử gọi endpoint ADO.NET SqlDataReader siêu tốc (Buổi 5)
+                    try
+                    {
+                        product = await client.GetFromJsonAsync<PosProductDto>($"ado-products/barcode/{barcode}");
+                    }
+                    catch
+                    {
+                        // Fallback sang endpoint products mặc định nếu có sự cố
+                        product = await client.GetFromJsonAsync<PosProductDto>($"products/barcode/{barcode}");
+                    }
+
+                    if (product == null)
+                    {
+                        MessageBox.Show("Không tìm thấy sản phẩm với mã vạch này!", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
 
                     var existing = _cart.Find(c => c.ProductId == product.ProductId);
-                    if (existing != null) existing.Quantity++;
-                    else _cart.Add(new CartItemDto { ProductId = product.ProductId, ProductName = product.ProductName, UnitPrice = product.Price, Quantity = 1 });
+                    if (existing != null)
+                    {
+                        existing.Quantity++;
+                    }
+                    else
+                    {
+                        _cart.Add(new CartItemDto
+                        {
+                            ProductId = product.ProductId,
+                            ProductName = product.ProductName,
+                            UnitPrice = product.Price,
+                            Quantity = 1
+                        });
+                    }
 
                     RefreshCartDisplay();
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Lỗi kết nối: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Lỗi kết nối khi tra cứu sản phẩm: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -252,7 +282,13 @@ namespace MiniSupermarketWinForms
         // ── Tra cứu khách hàng theo SĐT ──────────────────────────────
         private async System.Threading.Tasks.Task LookupCustomerAsync()
         {
-            if (string.IsNullOrWhiteSpace(txtCustomerPhone.Text)) return;
+            if (string.IsNullOrWhiteSpace(txtCustomerPhone.Text))
+            {
+                _selectedCustomerId = null;
+                lblCustomerName.Text = "Khách vãng lai";
+                lblCustomerName.ForeColor = Color.Gray;
+                return;
+            }
             try
             {
                 using var client = GetClient();
@@ -262,16 +298,22 @@ namespace MiniSupermarketWinForms
                 if (customers != null && customers.Count > 0)
                 {
                     var c = customers[0];
+                    _selectedCustomerId = c.CustomerId;
                     lblCustomerName.Text      = $"✅ {c.CustomerName}  |  Hạng: {c.MembershipRank}  |  Điểm: {c.RewardPoints}";
                     lblCustomerName.ForeColor = Color.FromArgb(0, 120, 60);
                 }
                 else
                 {
+                    _selectedCustomerId = null;
                     lblCustomerName.Text      = "⚠️ Không tìm thấy — Khách vãng lai";
                     lblCustomerName.ForeColor = Color.DimGray;
                 }
             }
-            catch { lblCustomerName.Text = "Khách vãng lai"; }
+            catch
+            {
+                _selectedCustomerId = null;
+                lblCustomerName.Text = "Khách vãng lai";
+            }
         }
 
         // ── Tính tiền thừa ────────────────────────────────────────────
@@ -296,8 +338,8 @@ namespace MiniSupermarketWinForms
             TxtCashReceived_TextChanged(null, null);
         }
 
-        // ── Thanh toán ────────────────────────────────────────────────
-        private void BtnCheckout_Click(object sender, EventArgs e)
+        // ── Thanh toán (Giao dịch ACID bảo vệ bởi SqlTransaction Buổi 5) ─
+        private async void BtnCheckout_Click(object sender, EventArgs e)
         {
             if (_cart.Count == 0)
             {
@@ -312,30 +354,100 @@ namespace MiniSupermarketWinForms
             }
 
             decimal change = cash - total;
-            string receipt = $"🌸 Beauty Mart — HÓA ĐƠN BÁN HÀNG\n";
-            receipt       += $"{'─',40}\n";
-            receipt       += $"Thu ngân: {SessionManager.FullName}\n";
-            receipt       += $"Thời gian: {DateTime.Now:HH:mm dd/MM/yyyy}\n";
-            receipt       += $"{'─',40}\n";
-            foreach (var item in _cart)
-                receipt   += $"{item.ProductName}\n  {item.Quantity} x {item.UnitPrice:N0} đ = {item.TotalPrice:N0} đ\n";
-            receipt       += $"{'─',40}\n";
-            receipt       += $"TỔNG CỘNG:    {total:N0} đ\n";
-            receipt       += $"Tiền khách:   {cash:N0} đ\n";
-            receipt       += $"Tiền thừa:    {change:N0} đ\n";
-            receipt       += $"{'─',40}\n";
-            receipt       += "Cảm ơn quý khách! Hẹn gặp lại 💕";
 
-            MessageBox.Show(receipt, "✅ Thanh toán thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            btnCheckout.Enabled = false;
+            btnCheckout.Text = "⏳ ĐANG XỬ LÝ GIAO DỊCH...";
 
-            // Reset
-            _cart.Clear();
-            RefreshCartDisplay();
-            txtCashReceived.Text   = "0";
-            txtCustomerPhone.Clear();
-            lblCustomerName.Text   = "Khách vãng lai";
-            lblCustomerName.ForeColor = Color.Gray;
-            txtBarcode.Focus();
+            try
+            {
+                // Chuẩn bị payload gửi lên API Checkout Buổi 5
+                var checkoutRequest = new
+                {
+                    CashierUsername = !string.IsNullOrWhiteSpace(SessionManager.CurrentUsername) ? SessionManager.CurrentUsername : "cashier",
+                    CustomerId = _selectedCustomerId ?? 15, // Khách vãng lai mặc định ID = 15
+                    Items = _cart.Select(x => new
+                    {
+                        ProductId = x.ProductId,
+                        Quantity = x.Quantity,
+                        UnitPrice = x.UnitPrice
+                    }).ToList()
+                };
+
+                using var client = GetClient();
+                var response = await client.PostAsJsonAsync("checkout", checkoutRequest);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string orderCode = $"HD-{DateTime.Now:yyyyMMdd}-XXXX";
+                    int rewardPoints = (int)(total / 10000);
+
+                    try
+                    {
+                        var resJson = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+                        if (resJson.TryGetProperty("orderCode", out var oc))
+                            orderCode = oc.GetString() ?? orderCode;
+                        if (resJson.TryGetProperty("rewardPointsAdded", out var rp))
+                            rewardPoints = rp.GetInt32();
+                    }
+                    catch { }
+
+                    string receipt = $"🌸 Beauty Mart — HÓA ĐƠN BÁN HÀNG\n";
+                    receipt       += $"{'─',40}\n";
+                    receipt       += $"Mã HĐ:   {orderCode}\n";
+                    receipt       += $"Thu ngân: {SessionManager.FullName ?? SessionManager.CurrentUsername ?? "Thu ngân"}\n";
+                    receipt       += $"Thời gian: {DateTime.Now:HH:mm dd/MM/yyyy}\n";
+                    receipt       += $"{'─',40}\n";
+                    foreach (var item in _cart)
+                        receipt   += $"{item.ProductName}\n  {item.Quantity} x {item.UnitPrice:N0} đ = {item.TotalPrice:N0} đ\n";
+                    receipt       += $"{'─',40}\n";
+                    receipt       += $"TỔNG CỘNG:    {total:N0} đ\n";
+                    receipt       += $"Tiền khách:   {cash:N0} đ\n";
+                    receipt       += $"Tiền thừa:    {change:N0} đ\n";
+                    receipt       += $"Điểm tích lũy: +{rewardPoints} điểm ⭐\n";
+                    receipt       += $"{'─',40}\n";
+                    receipt       += "Giao dịch đã được Commit an toàn vào CSDL (ACID)\n";
+                    receipt       += "Cảm ơn quý khách! Hẹn gặp lại 💕";
+
+                    MessageBox.Show(receipt, "✅ Thanh toán thành công (SqlTransaction)", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    // Reset giỏ hàng
+                    _cart.Clear();
+                    RefreshCartDisplay();
+                    txtCashReceived.Text   = "0";
+                    txtCustomerPhone.Clear();
+                    _selectedCustomerId = null;
+                    lblCustomerName.Text   = "Khách vãng lai";
+                    lblCustomerName.ForeColor = Color.Gray;
+                    txtBarcode.Focus();
+                }
+                else
+                {
+                    string errContent = await response.Content.ReadAsStringAsync();
+                    string errorMsg = "Không thể thanh toán đơn hàng!";
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(errContent);
+                        if (doc.RootElement.TryGetProperty("message", out var msg))
+                            errorMsg = msg.GetString() ?? errorMsg;
+                    }
+                    catch
+                    {
+                        if (!string.IsNullOrWhiteSpace(errContent)) errorMsg = errContent;
+                    }
+
+                    MessageBox.Show($"❌ GIAO DỊCH ĐÃ BỊ HUỶ (ROLLBACK AN TOÀN):\n\n{errorMsg}\n\n(Không có dữ liệu rác nào được lưu vào CSDL).",
+                        "Lỗi giao dịch POS", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Lỗi kết nối máy chủ Web API: " + ex.Message, "Lỗi kết nối", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btnCheckout.Enabled = true;
+                btnCheckout.Text = "✅  THANH TOÁN  [F9]";
+            }
         }
     }
 
