@@ -18,6 +18,64 @@ namespace MiniSupermarket.API.Controllers
             _context = context;
         }
 
+        // =========================================================================
+        // BUỔI 6 - BÀI TẬP MỞ RỘNG 6.1: PHÂN TRANG DANH SÁCH KHÁCH HÀNG THÂN THIẾT
+        // Sắp xếp giảm dần theo điểm tích lũy (RewardPoints)
+        // GET: api/customers/paged?keyword=lan&pageNumber=1&pageSize=5
+        // =========================================================================
+        [HttpGet("paged")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPagedCustomers(
+            [FromQuery] string? keyword,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 5)
+        {
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1 || pageSize > 50) pageSize = 5;
+
+            var query = _context.Customers
+                .AsNoTracking()
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                string search = keyword.Trim().ToLower();
+                query = query.Where(c => c.CustomerName.ToLower().Contains(search)
+                                      || c.PhoneNumber.Contains(search)
+                                      || (c.Address != null && c.Address.ToLower().Contains(search)));
+            }
+
+            int totalItems = await query.CountAsync();
+            int totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+
+            var items = await query
+                .OrderByDescending(c => c.RewardPoints) // Gợi ý: Sắp xếp theo thứ tự giảm dần của điểm thưởng
+                .ThenBy(c => c.CustomerId)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(c => new CustomerItemDto
+                {
+                    CustomerId = c.CustomerId,
+                    CustomerName = c.CustomerName,
+                    PhoneNumber = c.PhoneNumber,
+                    Address = c.Address ?? string.Empty,
+                    RewardPoints = c.RewardPoints,
+                    MembershipRank = c.MembershipRank ?? "Chuẩn"
+                })
+                .ToListAsync();
+
+            var response = new PagedResult<CustomerItemDto>
+            {
+                CurrentPage = pageNumber,
+                PageSize = pageSize,
+                TotalItems = totalItems,
+                TotalPages = totalPages,
+                Items = items
+            };
+
+            return Ok(response);
+        }
+
         // 1. GET: Lấy toàn bộ danh sách khách hàng (/api/customers)
         [HttpGet]
         public async Task<IActionResult> GetAll()

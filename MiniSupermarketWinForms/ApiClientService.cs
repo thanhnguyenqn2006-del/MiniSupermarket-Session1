@@ -27,7 +27,6 @@ namespace MiniSupermarketWinForms
                 BaseAddress = new Uri(BaseApiUrl)
             };
 
-            // Đính kèm Bearer Token nếu đã có phiên đăng nhập
             if (!string.IsNullOrEmpty(SessionManager.JwtToken))
             {
                 client.DefaultRequestHeaders.Authorization =
@@ -35,6 +34,15 @@ namespace MiniSupermarketWinForms
             }
 
             return client;
+        }
+
+        // Instance tĩnh truy xuất nhanh phù hợp với giáo trình thực hành Buổi 6
+        public static HttpClient Client => CreateHttpClient();
+
+        // Phương thức cập nhật Bearer Token sau khi đăng nhập thành công
+        public static void AttachToken(string token)
+        {
+            SessionManager.JwtToken = token;
         }
 
         // Hàm gọi API đăng nhập lấy Token

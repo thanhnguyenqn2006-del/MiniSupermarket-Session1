@@ -29,6 +29,14 @@ namespace MiniSupermarketWinForms
         private GroupBox grpInfo;
         private GroupBox grpList;
 
+        // Phân trang Khách hàng (Bài tập mở rộng 6.1)
+        private int _currentPage = 1;
+        private readonly int _pageSize = 5;
+        private int _totalPages = 1;
+        private Button btnPrev;
+        private Label lblPaging;
+        private Button btnNext;
+
         public FormCustomerManagement()
         {
             InitializeComponent();
@@ -36,8 +44,8 @@ namespace MiniSupermarketWinForms
 
         private void InitializeComponent()
         {
-            this.Text = "Quản lý Khách hàng thân thiết - Cửa hàng Beauty Mart";
-            this.Size = new Size(1000, 580);
+            this.Text = "Quản lý Khách hàng thân thiết (Phân trang LINQ - Buổi 6)";
+            this.Size = new Size(1000, 600);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Font = new Font("Segoe UI", 9F);
 
@@ -78,11 +86,11 @@ namespace MiniSupermarketWinForms
             // Group List
             this.grpList = new GroupBox
             {
-                Text = "Danh sách Khách hàng thân thiết (SQL Server)",
+                Text = "Danh sách Khách hàng thân thiết (Sắp xếp theo Điểm thưởng giảm dần)",
                 Left = 15,
                 Top = 60,
                 Width = 590,
-                Height = 460,
+                Height = 490,
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
 
@@ -95,7 +103,27 @@ namespace MiniSupermarketWinForms
                 ReadOnly = true,
                 BackgroundColor = Color.White
             };
+
+            var pnlPaging = new Panel { Dock = DockStyle.Bottom, Height = 45 };
+            btnPrev = new Button
+            {
+                Text = "◀ Trang trước", Left = 10, Top = 8, Width = 110, Height = 30,
+                BackColor = Color.FromArgb(41, 100, 180), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
+            };
+            lblPaging = new Label
+            {
+                Text = "Trang 1 / 1", Left = 130, Top = 14, Width = 180,
+                TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+            };
+            btnNext = new Button
+            {
+                Text = "Trang sau ▶", Left = 320, Top = 8, Width = 110, Height = 30,
+                BackColor = Color.FromArgb(41, 100, 180), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
+            };
+            pnlPaging.Controls.AddRange(new Control[] { btnPrev, lblPaging, btnNext });
+
             this.grpList.Controls.Add(dgvCustomers);
+            this.grpList.Controls.Add(pnlPaging);
 
             // Group Info
             this.grpInfo = new GroupBox
@@ -204,12 +232,31 @@ namespace MiniSupermarketWinForms
             // Events
             this.Load += async (s, e) => await LoadDataAsync();
             this.dgvCustomers.CellClick += DgvCustomers_CellClick;
-            this.btnLoad.Click += async (s, e) => await LoadDataAsync();
-            this.btnSearch.Click += async (s, e) => await SearchAsync();
+            this.btnLoad.Click += async (s, e) => { txtKeyword.Clear(); _currentPage = 1; await LoadDataAsync(); };
+            this.btnSearch.Click += async (s, e) => { _currentPage = 1; await LoadDataAsync(); };
+            this.txtKeyword.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _currentPage = 1; await LoadDataAsync(); } };
             this.btnAdd.Click += async (s, e) => await AddCustomerAsync();
             this.btnUpdate.Click += async (s, e) => await UpdateCustomerAsync();
             this.btnDelete.Click += async (s, e) => await DeleteCustomerAsync();
             this.btnClear.Click += (s, e) => ClearInputs();
+
+            // Paging events
+            this.btnPrev.Click += async (s, e) =>
+            {
+                if (_currentPage > 1)
+                {
+                    _currentPage--;
+                    await LoadDataAsync();
+                }
+            };
+            this.btnNext.Click += async (s, e) =>
+            {
+                if (_currentPage < _totalPages)
+                {
+                    _currentPage++;
+                    await LoadDataAsync();
+                }
+            };
 
             // Phân quyền theo vai trò (Buổi 2 + Buổi 3)
             var isAdmin = string.Equals(SessionManager.CurrentRole, "Admin", StringComparison.OrdinalIgnoreCase);
@@ -232,13 +279,27 @@ namespace MiniSupermarketWinForms
             try
             {
                 using var client = GetAuthenticatedClient();
-                var customers = await client.GetFromJsonAsync<List<CustomerDto>>("customers");
-                dgvCustomers.DataSource = customers;
-                ConfigureGridColumns();
+                string keyword = txtKeyword.Text.Trim();
+                string url = $"customers/paged?keyword={Uri.EscapeDataString(keyword)}&pageNumber={_currentPage}&pageSize={_pageSize}";
+
+                var result = await client.GetFromJsonAsync<PagedViewResult<CustomerDto>>(url);
+                if (result != null)
+                {
+                    _currentPage = result.CurrentPage;
+                    _totalPages = result.TotalPages == 0 ? 1 : result.TotalPages;
+
+                    dgvCustomers.DataSource = result.Items;
+                    lblPaging.Text = $"Trang {_currentPage} / {_totalPages} (Tổng: {result.TotalItems} KH)";
+
+                    btnPrev.Enabled = _currentPage > 1;
+                    btnNext.Enabled = _currentPage < _totalPages;
+
+                    ConfigureGridColumns();
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Lỗi tải danh sách khách hàng: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lỗi tải danh sách khách hàng phân trang: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -248,7 +309,7 @@ namespace MiniSupermarketWinForms
             if (dgvCustomers.Columns["CustomerName"] != null) dgvCustomers.Columns["CustomerName"].HeaderText = "Tên Khách Hàng";
             if (dgvCustomers.Columns["PhoneNumber"] != null) dgvCustomers.Columns["PhoneNumber"].HeaderText = "Số Điện Thoại";
             if (dgvCustomers.Columns["Address"] != null) dgvCustomers.Columns["Address"].HeaderText = "Địa Chỉ";
-            if (dgvCustomers.Columns["RewardPoints"] != null) dgvCustomers.Columns["RewardPoints"].HeaderText = "Điểm Thưởng";
+            if (dgvCustomers.Columns["RewardPoints"] != null) dgvCustomers.Columns["RewardPoints"].HeaderText = "Điểm Thưởng (Giảm dần)";
             if (dgvCustomers.Columns["MembershipRank"] != null) dgvCustomers.Columns["MembershipRank"].HeaderText = "Hạng Thẻ";
         }
 
@@ -269,24 +330,8 @@ namespace MiniSupermarketWinForms
 
         private async Task SearchAsync()
         {
-            string keyword = txtKeyword.Text.Trim();
-            if (string.IsNullOrWhiteSpace(keyword))
-            {
-                await LoadDataAsync();
-                return;
-            }
-
-            try
-            {
-                using var client = GetAuthenticatedClient();
-                string url = $"customers/search?keyword=" + Uri.EscapeDataString(keyword);
-                var list = await client.GetFromJsonAsync<List<CustomerDto>>(url);
-                dgvCustomers.DataSource = list;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Lỗi tìm kiếm khách hàng: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            _currentPage = 1;
+            await LoadDataAsync();
         }
 
         private async Task AddCustomerAsync()
